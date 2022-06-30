@@ -1,0 +1,141 @@
+model restore 'prepare_for_build_random_sample'
+define produce_random_particle_path(sample_number,particle_number,particle_path, particle_type)
+;;this function produce the random paticle path
+;;sample_number is the number of the sample.and in this function,the sample_number can't >10
+;;particle_number is the number of each sample ,it is an array point
+;;particle_type is the particle
+;;important parameters :i_sample>the random rock sample
+;i_digit >the digit of particle_number
+;i_particle >the random particle_number
+;
+;random_path->the particle path
+
+;;select rock sample randomly
+    local t_ = float(sample_number)/10
+    loop while true
+        i_sample = math.random.uniform
+        if i_sample < t_
+            exit loop
+        end_if
+    end_loop
+     
+    i_sample = int(10*i_sample) + 1
+    
+;;select particle randomly
+    local a_ = array.create(10) ;Store random numbers generated at each location
+    ;;the order number 1 present the number on individual bit
+    ;;the order number 2 present the number on decade
+    ;;the order number 3 present the number on Centenary
+    ;;the order number 4 present the number on Kilobits    
+    i_digit = 1 ;;the digit of particle_number
+    local zoom_ = 10 ;;the number to zoom the particle number so the number in each position can be extract
+    t_ = particle_number(i_sample)
+    loop while true     ;;determine the digit of particle_number
+        t_ = t_/zoom_
+       if t_ == 0
+            exit loop
+       end_if
+       
+       i_digit = i_digit+1
+    end_loop
+    
+    loop while true
+        loop i_(1,i_digit)
+            a_(i_) = math.random.uniform
+            a_(i_) = int(a_(i_)*10)
+        end_loop
+        i_particle = 0 ;store the random particle number
+        zoom_ = 1 ;Convert multiple of numbers in each position
+        loop i_(1,i_digit)
+            i_particle = i_particle + a_(i_)*zoom_
+            zoom_ = zoom_*10
+        end_loop
+        
+        if i_particle <= particle_number(i_sample) & i_particle # 0
+            exit loop
+        end_if
+    end_loop
+;;the random path of particle
+    random_path = particle_path(i_sample)+'\\'+ particle_type+ 'banktest' +'\\'+'A'+string(i_sample)+'_'+'handled'+'\\'+ 'inside'  + '_' +particle_type + string(i_particle) + '.stl'
+end
+
+define produce_random_particle_coodinate()
+    ;;;first,produce the cylindrical coodinate
+    random_r = math.sqrt(math.random.uniform)*0.032 
+    random_theta = math.random.uniform*2*math.pi
+    random_x = random_r*math.sin(random_theta);;the random xyz coodinate
+    random_y = random_r*math.cos(random_theta)
+    random_z = math.random.uniform*0.114-0.057
+end
+
+
+
+
+define f_scale_and_translate_particle (set_name, x_sample,y_sample,z_sample, lenth_x_in_image, lenth_y_in_image, lenth_z_in_image, rotate_y, rotate_x)  ;Code to zoom and translate particles, set_name is the geometry set name,
+;;xyz_ is the particle's centroid, xyz_sample is the centroid of the sample
+;;lenth_xyz_in_image represent the length in image
+    
+    geometry_ = geom.set.find(set_name) 
+    
+    command
+        geometry translate [-x_sample],[-y_sample],[-z_sample]  ;translate according to the rock sample centroid coodinate
+        geometry rotate angle @rotate_y axis (0,1,0) origin (0,0,0)
+        geometry rotate angle @rotate_x  axis (1,0,0) origin (0,0,0)
+    endcommand
+    
+    
+    loop foreach local node_ geom.node.list(geometry_)   ;Scale according to particle centroid coordinates
+        local x = geom.node.pos.x(node_)
+        local y = geom.node.pos.y(node_)
+        local z = geom.node.pos.z(node_)
+        local t_x = lenth_x_in_image/0.05
+        local t_y = lenth_y_in_image/0.05
+        local t_z = lenth_z_in_image/0.1  ;these three are the conversion scale
+        geom.node.pos.x(node_) = x/t_x
+        geom.node.pos.y(node_) = y/t_y
+        geom.node.pos.z(node_) = z/t_z
+    end_loop
+     
+   
+end
+
+define produce_random_particle(x_, y_, z_, particle_group,lenth_x_in_image, lenth_y_in_image, lenth_z_in_image, rotate_y, rotate_x)
+    command
+        geometry delete
+        geometry set 'particle'
+        geometry import @random_path set 'particle'
+    end_command
+    
+        f_scale_and_translate_particle ('particle', x_,y_,z_, lenth_x_in_image, lenth_y_in_image, lenth_z_in_image, rotate_y, rotate_x) 
+   
+    command
+        geometry rotate angle [360*math.random.uniform] axis (1,0,0) origin (0,0,0)
+        geometry rotate angle [360*math.random.uniform] axis (0,1,0) origin (0,0,0)
+        geometry rotate angle [360*math.random.uniform] axis (0,0,1) origin (0,0,0)
+        geometry translate [random_x] [random_y] [random_z]
+        ball group @particle_group range &
+        geometry-space 'particle' direction (0,0,1) not &
+        geometry-space 'particle' direction (0,1,0) not &
+        geometry-space 'particle' direction (1,0,0) not
+    end_command
+end
+
+define f_main()
+    command
+        ball group 'feldspar'
+    endcommand
+    ;;this function use the fuction define before to produce the random sample
+    loop local i_1(1,int(math.random.gauss*152.54+5004.08)+1)    ;;produce quartz
+        produce_random_particle_path(sample_number, particle_number_quartz,data_path,'quartz')
+        produce_random_particle_coodinate()
+        produce_random_particle(coodinate_quartz(i_sample,i_particle,1), coodinate_quartz(i_sample,i_particle,2), coodinate_quartz(i_sample,i_particle,3),'quartz', sample_lenth(i_sample,1), sample_lenth(i_sample,2), sample_lenth(i_sample,3),sample_rotate_y(i_sample), sample_rotate_x(i_sample))
+    end_loop
+   
+    loop  i_1(1,int(math.random.gauss*76.89+1011.4)+1)    ;;produce biotite
+        produce_random_particle_path(sample_number, particle_number_biotite,data_path,'biotite')
+        produce_random_particle_coodinate()
+        produce_random_particle(coodinate_biotite(i_sample,i_particle,1), coodinate_biotite(i_sample,i_particle,2), coodinate_biotite(i_sample,i_particle,3),'biotite', sample_lenth(i_sample,1), sample_lenth(i_sample,2), sample_lenth(i_sample,3),sample_rotate_y(i_sample), sample_rotate_x(i_sample))
+    end_loop
+end
+@f_main()
+model save 'test_random_sample_1'

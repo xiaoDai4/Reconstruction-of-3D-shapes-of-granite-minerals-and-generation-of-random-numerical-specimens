@@ -1,0 +1,147 @@
+model new
+model restore 'Homogeneous_rock_sample.sav'  ; restore compacted assembly
+
+; -------------------------------------------------------------------------------------------
+;wall property 'kn' 1e7 'ks' 1e7
+;ball property 'kn' 1e7
+
+contact property dp_nratio 0.0
+contact cmat default property dp_nratio 0.0 
+
+;contact property fric 0.577 range contact type 'ball-ball'
+
+def get_ss ; determine average stress and strain at walls
+    count = 0
+    sum_rad = 0.0
+    loop foreach local v wall.vertexlist(wadd1)
+        ;sum_rad = sum_rad + math.sqrt((wall.vertex.pos.x(v) - wall.pos.x(wadd1))^2 + (wall.vertex.pos.y(v) - wall.pos.y(wadd1))^2)
+        ;sum_rad = sum_rad + math.sqrt(math.mag2(vector(comp.x(wall.vertex.pos(v))),comp.y(wall.vertex.pos(v))))
+        ;sum_rad = sum_rad + math.mag(vector(comp.x(wall.vertex.pos(v))),comp.y(wall.vertex.pos(v)))
+        sum_rad = sum_rad + math.mag(vector(wall.vertex.pos.x(v),wall.vertex.pos.y(v)))
+        count = count + 1
+    endloop
+    new_rad = sum_rad / count 
+    
+    rdif  = new_rad - cylinder_rad  ;;Radial strain
+    zdif = wall.disp.z(wadd6) - wall.disp.z(wadd5);;Axial strain
+    new_height = sample_height + zdif
+
+    ;command
+    ;    list @new_rad @new_height
+    ;    ;pause key
+    ;endcommand
+    
+    count = 0
+    sum_force = 0.0
+    loop foreach local c wall.contactmap(wadd1) 
+        sum_force = sum_force + contact.force.normal(c) 
+        ;sum_force = sum_force + math.sqrt(contact.force.global.x(c)^2 + contact.force.global.y(c)^2)
+        count = count + 1
+    endloop
+    
+    wsrr  = -sum_force / (new_height * 2.0 * math.pi * new_rad);;Radial stress
+    wszz  = 0.5*(wall.force.contact.z(wadd5) - wall.force.contact.z(wadd6)) / (math.pi * new_rad^2.0);Axial stress
+    werr  = rdif / cylinder_rad;radical strain
+    wezz  = zdif / sample_height      ;Axial strain
+    wevol = (sample_volume- math.pi * new_rad * new_rad * new_height)/sample_volume
+end
+; -------------------------------------------------------------------------------------------
+def get_gain ; determine servo gain parameters for axial and lateral motion
+    global alpha = 0.5 ; relaxation factor
+    global count = 0
+    global avg_stiff = 0.0
+    
+    loop foreach contact wall.contactmap(wadd1)
+        avg_stiff = avg_stiff + contact.prop(contact,"kn")
+        count = count + 1
+    endloop
+    avg_stiff = avg_stiff / count
+    gr = alpha * sample_height * math.pi * cylinder_rad * 2.0 / (avg_stiff * count *  1);Radial increment function
+    
+    ;command
+    ;    list @avg_stiff @gr @count
+    ;    pause key
+    ;endcommand
+    
+    count = 0
+    avg_stiff = 0.0
+    loop foreach contact wall.contactmap(wadd6)
+        avg_stiff = avg_stiff + contact.prop(contact,"kn")
+        count = count + 1
+    endloop
+    loop foreach contact wall.contactmap(wadd5)
+        avg_stiff = avg_stiff + contact.prop(contact,"kn")
+        count = count + 1
+    endloop
+    ncount = count / 2.0
+    avg_stiff = avg_stiff / count
+    gz = alpha * math.pi * cylinder_rad^2.0/ (avg_stiff * ncount * 1) ;Axial increment function
+end
+; -------------------------------------------------------------------------------------------
+def servo
+    whilestepping
+    get_ss                 ; compute stresses & strains
+    
+    udr = gr * (wsrr - srrreq)
+    w_radvel = -udr
+    loop foreach local v wall.vertexlist(wadd1)
+        ;tan_theta=math.abs((wall.vertex.pos.y(v) - wall.pos.y(wadd1))/(wall.vertex.pos.x(v) - wall.pos.x(wadd1)))
+        ;cot_theta=math.abs((wall.vertex.pos.x(v) - wall.pos.x(wadd1))/(wall.vertex.pos.y(v) - wall.pos.y(wadd1)))
+        ;cos_theta_abs=math.sqrt(1.0/(1+tan_theta^2))
+        ;sin_theta_abs=math.sqrt(1.0/(1+cot_theta^2))
+        ;
+        ;vel_comp_x_sign=(wall.vertex.pos.x(v) - wall.pos.x(wadd1))/math.abs(wall.vertex.pos.x(v) - wall.pos.x(wadd1))
+        ;vel_comp_y_sign=(wall.vertex.pos.y(v) - wall.pos.y(wadd1))/math.abs(wall.vertex.pos.y(v) - wall.pos.y(wadd1))
+        ;
+        ;wall.vertex.vel.x(v) = rVel*cos_theta_abs*vel_comp_x_sign
+        ;wall.vertex.vel.y(v) = rVel*sin_theta_abs*vel_comp_y_sign
+        
+        ;nr = math.unit(vector(comp.x(wall.vertex.pos(v)),comp.y(wall.vertex.pos(v))))
+        nr = math.unit(vector(wall.vertex.pos.x(v),wall.vertex.pos.y(v)));the direction of the velocity
+        wall.vertex.vel(v) = w_radvel * nr;
+    endloop
+
+    if z_servo = 1         ; switch stress servo on or off
+        udz = gz * (wszz - szzreq)
+        wall.vel.z(wadd5) = udz
+        wall.vel.z(wadd6) = -udz
+    end_if
+    
+    ;command
+    ;    list @udr @udz
+    ;    pause key
+    ;endcommand
+end
+; -------------------------------------------------------------------------------------------
+def iterate
+    loop while 1 # 0
+        get_gain
+        if math.abs((wsrr - srrreq)/srrreq) < sig_tol then
+            if math.abs((wszz - szzreq)/szzreq) < sig_tol then
+                exit
+            end_if
+        end_if
+        command
+            cycle 100
+        end_command
+    end_loop
+end
+; -------------------------------------------------------------------------------------------
+def wall_addr     ;;this function is used to find the wall
+    wadd1 = wall.find(1)   ;;the cylinder disk
+    wadd5 = wall.find(5)   ;;bottom disk
+    wadd6 = wall.find(6)   ;;top disk
+end
+@wall_addr
+
+model calm
+
+[srrreq = -1e6 ] ;;request confining pressure
+[szzreq = -1e6 ] ;;request Axial pressure
+[sig_tol = 0.005 ] ;allowed error
+[z_servo = 1] ;;Turn on servo in Z direction
+@iterate  ; get all stresses to requested state
+
+model save 'Homogeneous_rock_sample_servo'
+
+;return

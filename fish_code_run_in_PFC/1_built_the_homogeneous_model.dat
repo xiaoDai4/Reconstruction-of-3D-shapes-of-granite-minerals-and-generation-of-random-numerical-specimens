@@ -1,0 +1,98 @@
+model new
+program echo off
+;the id of cylinder-wall is 1
+;the id of top disk wall is 6
+;the id of bottom disk wall is 5
+define set_parameter
+    domain_height = 0.4  ;Original calculation area height
+    domain_width =  0.2;Original calculation area width
+    
+    cylinder_axis_vec = vector(0,0,1) ;Direction of central axis of cylinder
+    cylinder_height   = 0.12;The height of a cylinder wall, longer than the rock sample
+    cylinder_base_vec = vector(0.0,0.0,-0.06) ;the position of the cylinder base
+    cylinder_rad      = 0.025  ;the cylinder rad;sample cylinder rad
+    bottom_disk_position_vec = vector(0.0,0.0,-0.05)
+    top_disk_position_vec    = vector(0.0,0.0,0.05)   ;Location of force application wall
+    disk_rad                 = 1.5 * cylinder_rad
+    wall_resolution = 0.1 ;the resolution of the wall
+    sample_height = 0.1  ;sample_height
+    poros = 0.4     ;the porosity of generate ball
+    rlo=0.0006           ;min ball radius
+    rhi=0.0010    ;max ball radius
+    sample_volume = 0.00019625;
+    
+end
+@set_parameter
+
+
+model domain extent ([-domain_width],[domain_width]) ([-domain_width],[domain_width]) ([-domain_height],[domain_height])
+model domain condition destroy
+model random 10001
+
+wall generate id 1 cylinder axis @cylinder_axis_vec ...
+                            base @cylinder_base_vec ...
+                            height @cylinder_height ...
+                            radius [cylinder_rad] ...
+                            cap false false ...
+                            one-wall ...
+                            resolution @wall_resolution   ;Produce a column wall without a top and bottom cover
+
+wall generate id 5 disk position @bottom_disk_position_vec ...
+                        dip 0 ...
+                        dip-direction 0 ...
+                        radius @disk_rad ...
+                        resolution @wall_resolution
+                        
+wall generate id 6 disk position @top_disk_position_vec ...
+                        dip 0 ...
+                        dip-direction 0 ...
+                        radius @disk_rad ...
+                        resolution @wall_resolution
+
+
+cmat default model linear &
+     method deformability emod 1.0e9 kratio 0.0
+contact cmat default property dp_nratio 0.5
+     
+
+
+;;make the rock-sample
+geometry set 'geo_cylinder'  ;Produce a cylinder has the same size as the rock sample
+geometry generate cylinder axis (0,0,1) &
+                  base (0.0,0.0,[-0.5*sample_height]) height [sample_height] &
+                  cap true true &
+                  radius [cylinder_rad] &
+                  resolution 0.1
+
+
+                
+ball delete range geometry-space 'geo_cylinder' 
+ball distribute porosity @poros &
+                resolution 1.0 &
+                number-bins 1 &
+                bin 1 &
+                radius [rlo]  [rhi]&
+                volume-fraction 1.0 &
+                box [-cylinder_rad] [cylinder_rad] [-cylinder_rad] [cylinder_rad] [-0.5*sample_height] [0.5*sample_height]
+                
+ball delete range geometry-space 'geo_cylinder'  ;delete the ball which out of the range of rock sample     
+
+
+ball attribute position-x multiply 0.8 position-y multiply 0.8 position-z multiply 0.95
+
+
+
+ball attribute density 2500 damp 0.7
+
+
+ball delete range geometry-space 'geo_cylinder'
+
+model cycle 1000 calm 10
+model mechanical timestep scale
+model solve ratio-average 1e-3
+
+model calm
+ball delete range geometry-space 'geo_cylinder'
+model save 'Homogeneous_rock_sample'
+
+program return

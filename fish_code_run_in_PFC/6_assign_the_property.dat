@@ -1,0 +1,211 @@
+model new
+model restore 'random_sample_1.sav'
+
+cmat default model linear &
+     method deformability emod 1.0e10 kratio 0.0;
+contact method deformability emod 1.0e10 kratio 0.0 ;;change the ks of wall
+
+ball attribute  damp 0.1 ;change the damp of ball
+
+
+contact model linearpbond range contact type 'ball-ball'
+contact method bond gap 2.0e-4
+
+
+define set_parameter6
+    density_feldspar = 2600
+    density_quartz = 2650
+    density_biotite = 3050
+    
+    ;in feldspar
+    deform_emod_in_feldspar = 8.2e9
+    deform_krat_in_feldspar = 2.3
+    pb_deform_emod_in_feldspar = deform_emod_in_feldspar
+    pb_deform_krat_in_feldspar = deform_krat_in_feldspar
+    pb_ten_in_feldspar = 97.5e6
+    pb_coh_in_feldspar = 1.5*pb_ten_in_feldspar
+    pb_fa_feldspar_in_feldspar = 8.53
+    fric_in_feldspar = 0.15
+    
+    ; in_quartz
+    deform_emod_in_quartz = deform_emod_in_feldspar*3
+    deform_krat_in_quartz = deform_krat_in_feldspar/4
+    pb_deform_emod_in_quartz = deform_emod_in_quartz
+    pb_deform_krat_in_quartz = deform_krat_in_quartz
+    pb_ten_in_quartz = pb_ten_in_feldspar*1.45
+    pb_coh_in_quartz = pb_coh_in_feldspar*1.45
+    pb_fa_in_quartz = 5.71
+    fric_in_quartz = 0.10
+    
+    ; in_biotite
+    deform_emod_in_biotite = deform_emod_in_feldspar/1.5
+    deform_krat_in_biotite = deform_krat_in_feldspar*1.1
+    pb_deform_emod_in_biotite = deform_emod_in_biotite
+    pb_deform_krat_in_biotite = deform_krat_in_biotite
+    pb_ten_in_biotite = pb_ten_in_feldspar/2
+    pb_coh_in_biotite = pb_coh_in_feldspar/2
+    pb_fa_in_biotite = 17.2
+    fric_in_biotite = 0.31
+    
+    ;in_feldspar_quartz
+    deform_emod_in_feldspar_quartz =0.2*2*deform_emod_in_feldspar*deform_emod_in_quartz/(deform_emod_in_feldspar+deform_emod_in_quartz)
+    deform_krat_in_feldspar_quartz =(deform_krat_in_feldspar + deform_krat_in_quartz)/2
+    pb_deform_emod_in_feldspar_quartz = deform_emod_in_feldspar_quartz
+    pb_deform_krat_in_feldspar_quartz = deform_krat_in_feldspar_quartz
+    pb_ten_in_feldspar_quartz = pb_ten_in_feldspar/5
+    pb_coh_in_feldspar_quartz = pb_coh_in_feldspar/3
+    pb_fa_in_feldspar_quartz = 33.02
+    fric_in_feldspar_quartz =0.65
+    
+    ; in_feldspar_biotite
+    deform_emod_in_feldspar_biotite = 0.2*2*deform_emod_in_feldspar*deform_emod_in_biotite/(deform_emod_in_feldspar+deform_emod_in_biotite)
+    deform_krat_in_feldspar_biotite = (deform_krat_in_feldspar + deform_krat_in_biotite)/2
+    pb_deform_emod_in_feldspar_biotite = deform_emod_in_feldspar_biotite
+    pb_deform_krat_in_feldspar_biotite = deform_krat_in_feldspar_biotite
+    pb_ten_in_feldspar_biotite = pb_ten_in_feldspar/5
+    pb_coh_in_feldspar_biotite = pb_coh_in_feldspar/3
+    pb_fa_in_feldspar_biotite = 28.81
+    fric_in_feldspar_biotite = 0.55
+    
+    ; in_quartz_biotite
+    deform_emod_in_quartz_biotite = 0.2*2*deform_emod_in_quartz*deform_emod_in_biotite/(deform_emod_in_quartz+deform_emod_in_biotite)
+    deform_krat_in_quartz_biotite = (deform_krat_in_quartz+deform_krat_in_biotite)/2
+    pb_deform_emod_in_quartz_biotite = deform_emod_in_quartz_biotite
+    pb_deform_krat_in_quartz_biotite = deform_krat_in_quartz_biotite
+    pb_ten_in_quartz_biotite = pb_ten_in_feldspar/5
+    pb_coh_in_quartz_biotite  = pb_coh_in_feldspar/3
+    pb_fa_in_quartz_biotite  = 26.57
+    fric_in_quartz_biotite = 0.5
+    
+    
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    
+end
+@set_parameter6
+;;this function group the contact
+;;six group: in_feldspar, in_feldspar_quartz, in_feldspar_biotite,
+;;in_quartz, in_quartz_biotite,in_biotite
+define group_contact
+    loop foreach local cp contact.list('ball-ball')  
+        bp1=contact.end1(cp)
+        bp2=contact.end2(cp)
+        
+        if ball.isgroup(bp1, 'feldspar') then
+            if ball.isgroup(bp2, 'feldspar') then
+                contact.group(cp) = 'in_feldspar' 
+            end_if
+            if ball.isgroup(bp2, 'quartz') then
+                contact.group(cp) = 'in_feldspar_quartz' 
+            end_if
+            if ball.isgroup(bp2, 'biotite') then
+                contact.group(cp) = 'in_feldspar_biotite' 
+            end_if
+        end_if
+        
+        if ball.isgroup(bp1, 'quartz') then
+            if ball.isgroup(bp2, 'feldspar') then
+                contact.group(cp) = 'in_feldspar_quartz' 
+            end_if
+            if ball.isgroup(bp2, 'quartz') then
+                contact.group(cp) = 'in_quartz' 
+            end_if
+            if ball.isgroup(bp2, 'biotite') then
+                contact.group(cp) = 'in_quartz_biotite' 
+            end_if
+        end_if
+        
+        if ball.isgroup(bp1, 'biotite') then
+            if ball.isgroup(bp2, 'feldspar') then
+                contact.group(cp) = 'in_feldspar_biotite' 
+            end_if
+            if ball.isgroup(bp2, 'quartz') then
+                contact.group(cp) = 'in_quartz_biotite' 
+            end_if
+            if ball.isgroup(bp2, 'biotite') then
+                contact.group(cp) = 'in_biotite' 
+            end_if
+        end_if
+    
+    end_loop
+end
+
+@group_contact
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; in_feldspar
+; set linear stiffness using methods
+contact method deform emod @deform_emod_in_feldspar krat @deform_krat_in_feldspar range group 'in_feldspar'
+; set stiffness of bonds using methods
+contact method pb_deform emod @pb_deform_emod_in_feldspar krat @pb_deform_krat_in_feldspar range group 'in_feldspar'
+; set bond strengths
+contact property pb_ten @pb_ten_in_feldspar pb_coh @pb_coh_in_feldspar pb_fa @pb_fa_feldspar_in_feldspar range group 'in_feldspar'
+; set ball-ball friction
+contact property fric @fric_in_feldspar range group 'in_feldspar'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; in_feldspar_quartz
+; set linear stiffness using methods
+contact method deform emod @deform_emod_in_feldspar_quartz krat @deform_krat_in_feldspar_quartz range group 'in_feldspar_quartz'
+; set stiffness of bonds using methods
+contact method pb_deform emod @pb_deform_emod_in_feldspar_quartz krat @pb_deform_krat_in_feldspar_quartz range group 'in_feldspar_quartz'
+; set bond strengths
+contact property pb_ten @pb_ten_in_feldspar_quartz pb_coh @pb_coh_in_feldspar_quartz pb_fa @pb_fa_in_feldspar_quartz range group 'in_feldspar_quartz'
+; set ball-ball friction
+contact property fric @fric_in_feldspar_quartz range group 'in_feldspar_quartz'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; in_feldspar_biotite
+; set linear stiffness using methods
+contact method deform emod @deform_emod_in_feldspar_biotite krat @deform_krat_in_feldspar_biotite range group 'in_feldspar_biotite'
+; set stiffness of bonds using methods
+contact method pb_deform emod @pb_deform_emod_in_feldspar_biotite krat @pb_deform_krat_in_feldspar_biotite range group 'in_feldspar_biotite'
+; set bond strengths
+contact property pb_ten @pb_ten_in_feldspar_biotite pb_coh @pb_coh_in_feldspar_biotite pb_fa @pb_fa_in_feldspar_biotite range group 'in_feldspar_biotite'
+; set ball-ball friction
+contact property fric @fric_in_feldspar_biotite range group 'in_feldspar_biotite'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; in_quartz
+; set linear stiffness using methods
+contact method deform emod @deform_emod_in_quartz krat @deform_krat_in_quartz range group 'in_quartz'
+; set stiffness of bonds using methods
+contact method pb_deform emod @pb_deform_emod_in_quartz krat @pb_deform_krat_in_quartz range group 'in_quartz'
+; set bond strengths
+contact property pb_ten @pb_ten_in_quartz pb_coh @pb_coh_in_quartz pb_fa @pb_fa_in_quartz range group 'in_quartz'
+; set ball-ball friction
+contact property fric @fric_in_quartz range group 'in_quartz'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; in_quartz_biotite
+; set linear stiffness using methods
+contact method deform emod @deform_emod_in_quartz_biotite krat @deform_krat_in_quartz_biotite range group 'in_quartz_biotite'
+; set stiffness of bonds using methods
+contact method pb_deform emod @pb_deform_emod_in_quartz_biotite krat @pb_deform_krat_in_quartz_biotite range group 'in_quartz_biotite'
+; set bond strengths
+contact property pb_ten @pb_ten_in_quartz_biotite pb_coh @pb_coh_in_quartz_biotite pb_fa @pb_fa_in_quartz_biotite range group 'in_quartz_biotite'
+; set ball-ball friction
+contact property fric @fric_in_quartz_biotite range group 'in_quartz_biotite'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; in_biotite
+; set linear stiffness using methods
+contact method deform emod @deform_emod_in_biotite krat @deform_krat_in_biotite range group 'in_biotite'
+; set stiffness of bonds using methods
+contact method pb_deform emod @pb_deform_emod_in_biotite krat @pb_deform_krat_in_biotite range group 'in_biotite'
+; set bond strengths
+contact property pb_ten @pb_ten_in_biotite pb_coh @pb_coh_in_biotite pb_fa @pb_fa_in_biotite range group 'in_biotite'
+; set ball-ball friction
+contact property fric @fric_in_biotite range group 'in_biotite'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;set the ball property 
+ball attribute density @density_feldspar range group 'feldspar'
+ball attribute density @density_quartz range group 'quartz'
+ball attribute density @density_biotite range group 'biotite'
+
+model calm
+model cycle 1000
+model calm
+model save 'random_sample_1_assigned_property.sav'
+
+;model solve ratio-average 1e-5

@@ -1,0 +1,93 @@
+model new
+model restore 'random_sample_1_assigned_property.sav'
+
+def set_ini ; set initial values
+    wezz_0  = wezz    ;;Initial axial strain
+    wevol_0 = wevol   ;;Initial volume strain
+    wsrr_0 = wsrr     ;;Radial stress
+    wszz_0  = wszz;Axial stress
+    werr_0  = werr;radical strain
+    
+   
+end
+; ----------------------------------------------------
+def conf                      ; variables for histories
+    
+    deax  = -(wezz - wezz_0)    ; axial strain
+    devol =-(wevol - wevol_0)     ; volumetric strain
+    dera  = werr - werr_0       ;Radial strain
+    conf  = wsrr - wsrr_0          ; confining stress
+    norm  = -(wszz - wszz_0)           ;;Normal stress
+    mu = -rdif/zdif*4 ;;poisson ratio
+    if deax # 0
+        E_young = norm/deax ;;Young's modulus
+    end_if 
+end
+; ----------------------------------------------------
+
+
+def accel_platens
+; ----- Accelerates the platens to achieve vel of _vfinal in _nsteps,
+;       using _nchunks
+    _niter = _nsteps / _nchunks
+    loop _chnk (1,_nchunks)
+        if _close = 1 then
+            _vel = _chnk*(_vfinal/_nchunks)
+        else
+            _vel = -_chnk*(_vfinal/_nchunks)
+        end_if
+        _mvel = -_vel
+        
+        wall.vel.z(wadd5) = _vel
+        wall.vel.z(wadd6) = _mvel
+        
+        command
+            cycle @_niter
+        end_command
+    end_loop
+end
+; ----------------------------------------------------
+  
+fish define loadhalt_wall
+  loadhalt_wall = 0
+  local abs_stress = math.abs(norm)
+  global peak_stress = math.max(abs_stress,peak_stress)
+  if abs_stress < peak_stress*peak_fraction
+    loadhalt_wall = 1
+  end_if
+end
+
+
+define record_E_mu
+;;this funtion record the E and mu at the 12001 step
+    whilestepping
+    i_record = i_record + 1
+    if i_record == 12001   ;;record at 12001 step
+        record_E = E_young   
+        record_mu = mu
+    end_if
+end
+
+@set_ini
+fish history name 1 @deax
+fish history name 2 @devol
+fish history name 3 @dera
+fish history name 4 @conf
+fish history name 5 @norm
+fish history name 6 @mu 
+fish history name 7 @E_young
+
+[z_servo = 0] ;;Turn off the axial servo
+[peak_fraction = 0.9]
+[_vfinal= 2.5e-8] ;;1 step represent 0.001s
+[_nsteps = 2000]
+[_nchunks = 80]
+[_record = 0]
+[_close = 1 ] 
+@accel_platens; load
+
+
+model solve fish-halt @loadhalt_wall
+
+model save 'random_sample_1_solved.sav'
+

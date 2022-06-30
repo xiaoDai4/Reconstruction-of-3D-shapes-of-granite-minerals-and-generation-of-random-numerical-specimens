@@ -1,0 +1,124 @@
+model new
+model restore 'Homogeneous_rock_sample_servo'
+define f_set_parameter
+    n_start_quartz_edge = 1  ;the start number of quartz
+    n_quartz_edge =   405      ;the end number of quartz
+    path_quartz_edge = 'D:\\avizo wen jian\\20200411data_A5sample\\quartzbanktest\\A5_handled'      ;the path of quartz
+    
+    n_start_quartz_inside = 1  ;the start number of quartz
+    n_quartz_inside =   2342      ;the end number of quartz
+    path_quartz_inside = 'D:\\avizo wen jian\\20200411data_A5sample\\quartzbanktest\\A5_handled' ;the path of quartz
+    
+    n_start_biotite_edge = 1  ;;the start number of biotite
+    n_biotite_edge =   100     ;the end number of biotite
+    path_biotite_edge =  'D:\\avizo wen jian\\20200411data_A5sample\\biotitebanktest\\A5_handled'     ;the path of biotite
+    
+    n_start_biotite_inside = 1  ;;the start number of biotite
+    n_biotite_inside =   555      ;the end number of biotite
+    path_biotite_inside =  'D:\\avizo wen jian\\20200411data_A5sample\\biotitebanktest\\A5_handled'     ;the path of biotite
+    
+    x_sample = 475.942 
+    y_sample = 485.939
+    z_sample = 749.462 ;rock sample centroid coordinates ,be used in f_scale_and_translate_particle 
+
+    lenth_x_in_image = 854
+    lenth_y_in_image = 854
+    lenth_z_in_image = 1455
+    
+    rotate_y = 1.52   ;Rotation angle about y axis
+    rotate_x = -1.29  ;Rotation angle about x axis
+    
+    sample_name = 'sample_A5';;the stored sample model name
+    
+    
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;this part, we define the function be used in f_import_particle
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+define f_scale_and_translate_particle (set_name, x_sample,y_sample,z_sample, lenth_x_in_image, lenth_y_in_image, lenth_z_in_image, rotate_y, rotate_x)  ;Code to zoom and translate particles, set_name is the geometry set name,
+;;xyz_ is the particle's centroid, xyz_sample is the centroid of the sample
+;;lenth_xyz_in_image represent the length in image
+    
+    geometry_ = geom.set.find(set_name) 
+    
+    command
+        geometry translate [-x_sample],[-y_sample],[-z_sample]  ;translate according to the rock sample centroid coodinate
+        geometry rotate angle @rotate_y axis (0,1,0) origin (0,0,0)
+        geometry rotate angle @rotate_x  axis (1,0,0) origin (0,0,0)
+    endcommand
+    
+    
+    loop foreach local node_ geom.node.list(geometry_)   ;Scale according to particle centroid coordinates
+        local x = geom.node.pos.x(node_)
+        local y = geom.node.pos.y(node_)
+        local z = geom.node.pos.z(node_)
+        local t_x = lenth_x_in_image/0.05
+        local t_y = lenth_y_in_image/0.05
+        local t_z = lenth_z_in_image/0.1  ;these three are the conversion scale
+        geom.node.pos.x(node_) = x/t_x
+        geom.node.pos.y(node_) = y/t_y
+        geom.node.pos.z(node_) = z/t_z
+    end_loop
+     
+   
+end
+
+define f_import_particle(path_, x_sample, y_sample, z_sample, n_start, n_, particle, particle_group)
+;;this code is used to import the particle,the path_ is the particle stl file path;
+;;xyz_sample are the centroid of the sample
+;;n_start and n_ are the start number and the end number of the particle
+;;particle is the file name without '.stl'
+;;particle group is the group name assign the the ball
+ 
+   
+   loop i_(n_start, n_)
+   
+        
+        local particle_path = path_  + '\\' + particle + string(i_) +'.stl'
+        command 
+                geometry delete
+                geometry set 'particle'
+                geometry import @particle_path set 'particle'
+                
+        end_command
+        
+        f_scale_and_translate_particle ('particle', x_sample,y_sample,z_sample,lenth_x_in_image,lenth_y_in_image,lenth_z_in_image,rotate_y, rotate_x)
+        
+        command
+                ball group @particle_group range &
+                geometry-space 'particle' direction (0,0,1) not &
+                geometry-space 'particle' direction (0,1,0) not &
+                geometry-space 'particle' direction (1,0,0) not
+                
+        end_command
+    
+    end_loop
+;
+    command
+            geometry delete
+    end_command
+end
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;the above part, we define the function be used in f_import_particle
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+ball group 'feldspar'
+
+
+@f_set_parameter
+;;set parameter
+@f_import_particle(@path_quartz_edge, @x_sample, @y_sample, @z_sample, @n_start_quartz_edge, @n_quartz_edge, 'edge_quartz', 'quartz')
+;import the edge_quartz
+@f_import_particle(@path_quartz_inside, @x_sample, @y_sample, @z_sample, @n_start_quartz_inside, @n_quartz_inside, 'inside_quartz', 'quartz')
+;import the inside_quartz
+
+@f_import_particle(@path_biotite_edge, @x_sample, @y_sample, @z_sample, @n_start_biotite_edge, @n_biotite_edge, 'edge_biotite', 'biotite')
+;import the edge_biotite
+@f_import_particle(@path_biotite_inside, @x_sample, @y_sample, @z_sample, @n_start_biotite_inside, @n_biotite_inside, 'inside_biotite', 'biotite')
+;import the inside_biotite
+model save @sample_name
