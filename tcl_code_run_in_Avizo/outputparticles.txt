@@ -1,0 +1,112 @@
+set hideNewModules 0
+set n_start 0
+##Designated cycle initial value
+
+set rock test
+##Designated rock sample name
+
+set n_ 1223
+##particle quantity 
+
+set outputpath {D:/avizo wen jian/20200411data/particlebanktest/}
+##output stl path
+
+[ load -unit µm "D:/avizo wen jian/20200411data/quartz label analysis-files/final.label" ] setLabel "final.label"
+"final.label" fire
+##file path
+
+[ load "D:/avizo wen jian/20200411data/quartz label analysis-files/final.Label-Analysis" ] setLabel "final.Label-Analysis"
+"final.Label-Analysis" fire
+##file path
+
+set f_x [open "D:/avizo wen jian/20200411data/quartz_f_x.txt" r]   
+##input particle x coordinate
+
+set i 0
+set list_x [list]
+while {![eof $f_x]} {
+gets $f_x line
+lappend list_x $line
+}
+close $f_x
+
+set f_y [open "D:/avizo wen jian/20200411data/quartz_f_y.txt" r]   
+## input particle y coordinate
+
+set i 0
+set list_y [list]
+while {![eof $f_y]} {
+gets $f_y line
+lappend list_y $line
+}
+close $f_y
+
+set f_z [open "D:/avizo wen jian/20200411data/quartz_f_z.txt" r]   
+## input particle z coordinate
+
+set i 0
+set list_z [list]
+while {![eof $f_z]} {
+gets $f_z line
+lappend list_z $line
+}
+close $f_z
+
+##################################################
+#################################Set parameters above
+################################################
+
+create HxFilterAnalysis "Analysis Filter"
+
+"Analysis Filter" setVar "CustomHelp" {HxFilterAnalysis}
+"Analysis Filter" data connect "final.Label-Analysis"
+"Analysis Filter" image connect "final.label"
+
+set i $n_start
+while {$i < $n_} {
+###Cycle start
+"Analysis Filter" filter setState BaryCenterX>[expr [lindex $list_x $i]-1]&&BaryCenterX<[expr [lindex $list_x $i]+1]&&BaryCenterY>[expr [lindex $list_y $i]-1]&&BaryCenterY<[expr [lindex $list_y $i]+1]&&BaryCenterZ>[expr [lindex $list_z $i]-1]&&BaryCenterZ<[expr [lindex $list_z $i]+1]
+"Analysis Filter" fire
+
+[ {Analysis Filter} create AnlOut ] setLabel "final.Analysis-Filter"
+"final.Analysis-Filter" fire
+
+[ {Analysis Filter} create result1 ] setLabel "final.label-filtering"
+"final.label-filtering" fire
+
+
+create HxGMC "Generate Surface"
+"Generate Surface" data connect "final.label-filtering"
+"Generate Surface" algorithmMode setIndex 0 1
+"Generate Surface" smoothing setIndex 0 0
+"Generate Surface" fire
+
+[ {Generate Surface} create AnlOut ] setLabel "final.surf"
+"final.surf" fire
+
+
+
+
+create HxRemeshSurface "Remesh Surface"
+"Remesh Surface" data connect "final.surf"
+"Remesh Surface" desiredSize setValue 2 5
+"Remesh Surface" errorThresholds setValue 0 -1
+"Remesh Surface" errorThresholds setValue 1 -1
+"Remesh Surface" contourOptions setValue 1 0
+"Remesh Surface" fire
+
+
+[ {Remesh Surface} create result ] setLabel "final2.remeshed"
+"final2.remeshed" fire
+
+set outputpath_t $outputpath
+append outputpath_t "$rock"
+append outputpath_t "$i"
+append outputpath_t ".stl"
+"final2.remeshed" exportData  "STL ascii" $outputpath_t
+##output particles
+
+remove "final.Analysis-Filter" "final.label-filtering" "final.surf" "final2.remeshed"
+set i [expr $i+1]
+}
+##end of the cycle
